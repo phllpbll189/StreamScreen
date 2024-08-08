@@ -6,7 +6,7 @@
     "distDir": "../dist"
   },
   "package": {
-    "productName": "test",
+    "productName": "Stream Screen",
     "version": "0.0.0"
   },
   "tauri": {
@@ -19,7 +19,7 @@
     },
     "windows": [
       {
-        "title": "test",
+        "title": "Stream Screen",
         "width": 800,
         "height": 600
       }
