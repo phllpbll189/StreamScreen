@@ -23,7 +23,7 @@ CD into the directory you cloned
 
 Run
 
-    npm tauri run dev
+    npm run tauri dev
 after rust hooks into the javascript framework, you will have a window pop up.
 
 
