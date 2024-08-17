@@ -1,5 +1,5 @@
 pub mod server_test {
-    use std::{cmp::Ordering, io::Read, net::{TcpListener, TcpStream}, thread::{spawn, JoinHandle}};
+    use std::{cmp::Ordering, io::{Read, Write}, net::{TcpListener, TcpStream}, thread::{spawn, JoinHandle}};
     use serde_json::{Result, Value};
     use local_ip_address::local_ip;
 
@@ -32,20 +32,21 @@ pub mod server_test {
         let len = stream.read(&mut buffer).unwrap();
         let (message_length, initial) = get_message_size(&mut buffer, len);
         let len: u16 = u16::try_from(len).unwrap();
+        println!("{}", message_length);
         
         match message_length.cmp(&len) {
-            Ordering::Less => message.extend(&buffer[..usize::from(len)]),
+            Ordering::Less => {
+                message.extend(&buffer[..usize::from(len)]);
+                stream.write("COM".as_bytes()).unwrap();
+            },
             Ordering::Greater => {
                 message.extend(&buffer[initial..]);
-                message.extend(
-                    read_rest_of_message(
-                        stream, 
-                        message_length-(len - u16::try_from(initial).unwrap()),
-                        &mut message.clone()
-                    )
-                );
+                message.extend(read_rest_of_message(stream, message_length-(len - u16::try_from(initial).unwrap()), &mut message.clone()));
             },
-            Ordering::Equal => message.extend(&buffer[initial..])
+            Ordering::Equal => {
+                message.extend(&buffer[initial..]);
+                stream.write("COM".as_bytes()).unwrap();
+            }
         }
 
         println!("{}", String::from_utf8_lossy(&message));
@@ -79,7 +80,8 @@ pub mod server_test {
         let mut length = length;
 
         while length > 0{
-           let len = u16::try_from(stream.read(&mut buf).unwrap()).unwrap();
+           stream.write("INCOM".as_bytes()).unwrap();
+           let len = u16::try_from(stream.read(&mut buf).unwrap()).unwrap(); //crashes when client disconnects forcibly
             
             match length.cmp(&len){
                 Ordering::Less => {
