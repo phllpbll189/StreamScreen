@@ -14,7 +14,7 @@ pub mod server_test {
                 match incoming {
                     Ok((stream, address)) => {
                         let mut stream = stream;
-                        println!("this is the address: {}", address);
+                        println!("this is the address of the client: {}", address);
                         handle_request(&mut stream) 
                     },
                     Err(e) => println!("{}", e)
@@ -32,7 +32,6 @@ pub mod server_test {
         let len = stream.read(&mut buffer).unwrap();
         let (message_length, initial) = get_message_size(&mut buffer, len);
         let len: u16 = u16::try_from(len).unwrap();
-        println!("{}", message_length);
         
         match message_length.cmp(&len) {
             Ordering::Less => {
@@ -81,7 +80,7 @@ pub mod server_test {
 
         while length > 0{
            stream.write("INCOM".as_bytes()).unwrap();
-           let len = u16::try_from(stream.read(&mut buf).unwrap()).unwrap(); //crashes when client disconnects forcibly
+           let len = u16::try_from(stream.read(&mut buf).unwrap()).unwrap();
             
             match length.cmp(&len){
                 Ordering::Less => {
