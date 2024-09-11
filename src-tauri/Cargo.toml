@@ -11,12 +11,20 @@ edition = "2021"
 tauri-build = { version = "1", features = [] }
 
 [dependencies]
-tauri = { version = "1", features = ["shell-open"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 devtools = "0.3.3"
 local-ip-address = "0.6.1"
+lazy_static = "1.4.0"
+
+
+[dependencies.tauri]
+version = "1.x"
+features = [ "shell-open", "test"]
 
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]
+
+[dev-dependencies]
+mockall = "0.13.0"

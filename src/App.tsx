@@ -1,24 +1,33 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/tauri";
+import { useState, useEffect } from "react";
+import { listen, Event } from '@tauri-apps/api/event';
 import "./App.css";
 
 function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
-  const [currentStatuses, setCurrentStatuses] = useState(["Intializing"])
 
+  const [currentStatuses, setCurrentStatuses] = useState(["Initializing"]);
+  const [frameData, setFrameData] = useState<Uint8Array | null>(null);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  useEffect(() => {
+    const unlisten = listen<Uint8Array>('frame_data', (event: Event<Uint8Array>) => {
+      const data = event.payload;
+      setFrameData(data);
+    });
+
+    return () => {
+      unlisten.then((f: () => void) => f());
+    };
+  }, []);
 
   return (
     <div className="container">
       <h1>Welcome to hell</h1>
       {currentStatuses.map((object, i) => <p>{i}. {object}</p>)}
-
+      {frameData && (
+        <img
+          src={URL.createObjectURL(new Blob([frameData], { type: 'image/jpeg' }))}
+          alt="Frame"
+        />
+      )}
     </div>
   );
 }
