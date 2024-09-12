@@ -51,20 +51,27 @@ pub mod server {
         println!("handling request");
         stream.write(b"Connected").unwrap();
 
-        let mut buf: Vec<u8> = Vec::new();
-        loop{
+        let mut buf = [0; 1024]; // Fixed-size buffer
+        loop {
             let current_time = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");
             println!("reading from stream at {:?}", current_time);
 
-            let size = stream.read_to_end(&mut buf).expect("Failed to read from stream");
-            if size == 0 {
-                println!("Connection interrupted inside thread at {:?}", current_time);
-                break;
-            };
-
-            let result = handle_json_string(&String::from_utf8_lossy(&buf), app_handle.clone());
-            println!("result: {:?}", result);
-            buf.clear();
+            match stream.read(&mut buf) {
+                Ok(size) if size > 0 => {
+                    let received = &buf[..size];
+                    let result = handle_json_string(&String::from_utf8_lossy(received), app_handle.clone());
+                    println!("result: {:?}", result);
+                }
+                Ok(0) => {
+                    println!("Connection closed by client at {:?}", current_time);
+                    break;
+                }
+                Ok(_) => (), // Handle any other Ok case (though this should not occur)
+                Err(e) => {
+                    println!("Error reading from stream: {:?}", e);
+                    break;
+                }
+            }
         }
     }
 
