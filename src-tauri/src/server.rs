@@ -11,8 +11,9 @@ pub mod server {
     use std::sync::Mutex;
     use std::net::UdpSocket;
     use std::sync::mpsc::{channel, Sender, Receiver};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
-    #[derive(Deserialize, Serialize)]
+    #[derive(Deserialize, Serialize, Debug)]
     struct Message {
         action: String,
         device_id: Option<String>,
@@ -28,27 +29,17 @@ pub mod server {
         let app_handle = Arc::new(app_handle);
 
         loop {
-            let mut incoming: Vec<u8> = Vec::new();
-
             let local_host = local_ip().unwrap().to_string();
             let tcplisten = TcpListener::bind(local_host+":7890").unwrap();
-            let Ok(mut tuple) = tcplisten.accept() else {
+
+            let Ok(tuple) = tcplisten.accept() else {
                 println!("Could not accept socket connection");
                 continue
             };
 
-            let Ok(_) = tuple.0.read_to_end(&mut incoming) else {
-               println!("could recieve from stream");
-               continue
-            };
-
-            println!("{:?}", String::from_utf8_lossy(&incoming));
-
-            let Ok(new_client) = TcpStream::connect(tuple.1.to_string() + "7891") else {continue};
-
             let app_handle_clone = Arc::clone(&app_handle);
             let tcp_thread = spawn(move || {
-                handle_request(new_client, app_handle_clone);
+                handle_request(tuple.0, app_handle_clone);
             });
 
             let _ = tcp_thread.join();
@@ -58,32 +49,47 @@ pub mod server {
 
     fn handle_request(mut stream: TcpStream, app_handle: Arc<tauri::AppHandle>) {
         println!("handling request");
-        let mut buf: Vec<u8> = Vec::new();
         stream.write(b"Connected").unwrap();
 
-        buf.clear();
-        loop{
-            let Ok(_) = stream.read_to_end(&mut buf) else {
-                println!("Connection interupted");
-                break;
-            };
-            let result = handle_json_string(&String::from_utf8_lossy(&buf), app_handle.clone());
-            println!("{:?}", result);
-            buf.clear();
+        let mut buf = [0; 1024]; // Fixed-size buffer
+        loop {
+            let current_time = SystemTime::now().duration_since(UNIX_EPOCH).expect("Time went backwards");
+            println!("reading from stream at {:?}", current_time);
+
+            match stream.read(&mut buf) {
+                Ok(size) if size > 0 => {
+                    let received = &buf[..size];
+                    let result = handle_json_string(&String::from_utf8_lossy(received), app_handle.clone());
+                    println!("result: {:?}", result);
+                }
+                Ok(0) => {
+                    println!("Connection closed by client at {:?}", current_time);
+                    break;
+                }
+                Ok(_) => (), // Handle any other Ok case (though this should not occur)
+                Err(e) => {
+                    println!("Error reading from stream: {:?}", e);
+                    break;
+                }
+            }
         }
     }
 
 
     pub fn handle_json_string(json_str: &str, app_handle: Arc<tauri::AppHandle>) -> Result<()> {
         let message: Message = serde_json::from_str(json_str)?;
-
+        println!("message: {:?}", message);
         match message.action.as_str() {
             "start_stream" => {
                 println!("Starting stream");
+
                 if let Some(port) = message.udp_port {
                     println!("Starting stream on port {}", port);
                     match start_udp_stream(port, Arc::clone(&app_handle)) {
-                        Ok(_) => Ok(()),
+                        Ok(_) => {
+                            println!("UDP stream started on port {}", port);
+                            Ok(())
+                        },
                         Err(e) => {
                             println!("Failed to start UDP stream: {}", e);
                             Err(serde_json::Error::custom("failed to start UDP stream"))
@@ -120,7 +126,8 @@ pub mod server {
 
 
     pub fn start_udp_stream(port: u16, app_handle: Arc<tauri::AppHandle>) -> std::io::Result<()> {
-        let socket = UdpSocket::bind(format!("0.0.0.0:{}", port))?;
+        let local_ip = default_net::get_default_interface().unwrap().ipv4[0].addr.to_string();
+        let socket = UdpSocket::bind(format!("{}:{}", local_ip, port))?;
         println!("UDP stream started on port {}", port);
 
         let (tx, rx): (Sender<()>, Receiver<()>) = channel();
